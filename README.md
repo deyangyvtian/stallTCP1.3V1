@@ -8,6 +8,8 @@
 
 # 修复全平台所有兼容性问题 修复ios系统shadowrocket以及quantumult x兼容性问题
 
+<img width="1905" height="919" alt="image" src="https://github.com/user-attachments/assets/e43db73f-4d8d-41a3-ab43-61555c8c984b" />
+
 -----------------------------------------------------------------------------------------------------------------
 
 ## ✨ 主要功能
