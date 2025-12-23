@@ -15,7 +15,7 @@ const TG_CHANNEL_URL = "https://t.me/cloudflareorg";  //可此修改自定义内
 const PROXY_CHECK_URL = "https://kaic.hidns.co/";  //可修改自定义的proxyip检测站
 const DEFAULT_CONVERTER = "https://subapi.zrfme.com";  //可修改自定义后端api
 const CLASH_CONFIG = "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini"; //可修改自定义订阅配置转换ini
-const SINGBOX_CONFIG_V12 = "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json"; //禁止修改 优先使用1.12 后用1.11
+const SINGBOX_CONFIG_V12 = "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json"; //禁止修改 优先使用1.11 后用1.12
 const SINGBOX_CONFIG_V11 = "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.json"; //禁止修改
 const TG_BOT_TOKEN = ""; //你的机器人token
 const TG_CHAT_ID = "";  //你的TG ID
@@ -86,23 +86,83 @@ async function getAllWhitelist(env) {
     return result;
 }
 
-async function logAccess(env, ip, region, action) {
-    if (!env.DB) return;
+/**
+ * 🛡️ [优化] 日志记录函数 (D1 & KV 双保险防爆)
+ */
+async function logAccess(env, ctx, ip, region, action) {
+    // ⚠️ 全局采样保护：如果是高频操作（如订阅），只记录 20% 的日志
+    // 无论 D1 还是 KV，都防止被刷爆额度
+    if ((action.includes("订阅") || action.includes("检测")) && Math.random() > 0.2) {
+        return;
+    }
+
     const time = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-    try {
-        await env.DB.prepare("INSERT INTO logs (time, ip, region, action) VALUES (?, ?, ?, ?)").bind(time, ip, region, action).run();
-        await env.DB.prepare("DELETE FROM logs WHERE id NOT IN (SELECT id FROM logs ORDER BY id DESC LIMIT 1000)").run();
-    } catch (e) {}
+    
+    // 1. D1 数据库 (异步写入)
+    if (env.DB) {
+        ctx.waitUntil(async function() {
+            try {
+                await env.DB.prepare("INSERT INTO logs (time, ip, region, action) VALUES (?, ?, ?, ?)").bind(time, ip, region, action).run();
+                // 自动清理旧日志 (保留1000条)
+                await env.DB.prepare("DELETE FROM logs WHERE id NOT IN (SELECT id FROM logs ORDER BY id DESC LIMIT 1000)").run();
+            } catch (e) {}
+        }());
+        return;
+    }
+
+    // 2. KV 空间 (降级方案 + CPU优化)
+    if (env.LH) {
+        ctx.waitUntil(async function() {
+            try {
+                let currentLogs = await env.LH.get('ACCESS_LOGS') || "";
+                if (currentLogs.length > 30000) currentLogs = ""; // 长度保护
+                let logLines = currentLogs.split('\n').filter(Boolean);
+                const newLog = `${time}|${ip}|${region}|${action}`;
+                logLines.unshift(newLog);
+                if (logLines.length > 30) logLines = logLines.slice(0, 30);
+                await env.LH.put('ACCESS_LOGS', logLines.join('\n'));
+            } catch(e) {}
+        }());
+    }
 }
 
+/**
+ * 🛡️ [优化] 每日统计函数 (D1 额度保护版)
+ * - D1: 开启 1% 采样写入，防止 10万次/天 的额度被耗尽
+ * - KV: 保持只读
+ */
 async function incrementDailyStats(env) {
-    if (!env.DB) return "0";
-    const dateStr = new Date().toISOString().split('T')[0];
-    try {
-        await env.DB.prepare(`INSERT INTO stats (date, count) VALUES (?, 1) ON CONFLICT(date) DO UPDATE SET count = count + 1`).bind(dateStr).run();
-        const { results } = await env.DB.prepare("SELECT count FROM stats WHERE date = ?").bind(dateStr).all();
-        return results[0]?.count?.toString() || "1";
-    } catch(e) { return "0"; }
+    // D1 逻辑 (采样写入)
+    if (env.DB) {
+        // 采样率：100 (每 100 次请求，才写一次数据库)
+        // 这样每天可以承受 1000万次请求而不爆 D1 额度
+        const SAMPLE_RATE = 100;
+        
+        if (Math.random() < (1 / SAMPLE_RATE)) {
+            const dateStr = new Date().toISOString().split('T')[0];
+            try {
+                // 写入时直接 +100
+                await env.DB.prepare(`INSERT INTO stats (date, count) VALUES (?, ${SAMPLE_RATE}) ON CONFLICT(date) DO UPDATE SET count = count + ${SAMPLE_RATE}`).bind(dateStr).run();
+            } catch(e) {}
+        }
+        
+        // 读取时不采样，尽量返回当前值 (可能稍微滞后，但安全)
+        try {
+            const dateStr = new Date().toISOString().split('T')[0];
+            const { results } = await env.DB.prepare("SELECT count FROM stats WHERE date = ?").bind(dateStr).all();
+            return results[0]?.count?.toString() || "0";
+        } catch(e) { return "0"; }
+    }
+    
+    // KV 逻辑 (只读 - 真正写入在 safeUpdateKVStats)
+    if (env.LH) {
+        try {
+            const count = await env.LH.get("KV_TOTAL_REQ");
+            return count || "0";
+        } catch(e) { return "0"; }
+    }
+    
+    return "0";
 }
 
 async function parseIP(p){
@@ -170,8 +230,19 @@ async function sendTgMsg(ctx, env, title, r, detail = "", isAdmin = false) {
 }
 
 const handle = (ws, pc, uuid) => {
-  const pool = new Pool(); let s, w, r, inf, fst = true, rx = 0, stl = 0, cnt = 0, lact = Date.now(), con = false, rd = false, wt = false, tm = {}, pd = [], pb = 0, scr = 1.0, lck = Date.now(), lrx = 0, md = 'buf', asz = 0, tp = [], st = { t: 0, c: 0, ts: Date.now() };
-  const upd = sz => { st.t += sz; st.c++; asz = asz * 0.9 + sz * 0.1; const n = Date.now(); if (n - st.ts > 1000) { const rt = st.t; tp.push(rt); if (tp.length > 5) tp.shift(); st.t = 0; st.ts = n; const av = tp.reduce((a, b) => a + b, 0) / tp.length; if (st.c >= 20) { if (av > 2e7 && asz > 16384) md = 'dir'; else if (av < 1e7 || asz < 8192) md = 'buf'; else md = 'adp' } } };
+  const pool = new Pool(); 
+  // 🛡️ CPU 修复：强制直通模式 ('dir')
+  let s, w, r, inf, fst = true, rx = 0, stl = 0, cnt = 0, lact = Date.now(), con = false, rd = false, wt = false, tm = {}, pd = [], pb = 0, scr = 1.0, lck = Date.now(), lrx = 0, md = 'dir', asz = 0, tp = [], st = { t: 0, c: 0, ts: Date.now() };
+  
+  const upd = sz => { 
+      st.t += sz; st.c++; asz = asz * 0.9 + sz * 0.1; 
+      const n = Date.now(); 
+      if (n - st.ts > 1000) { 
+          const rt = st.t; tp.push(rt); if (tp.length > 5) tp.shift(); st.t = 0; st.ts = n; 
+          md = 'dir'; // 始终保持高效模式
+      } 
+  };
+
   const rdL = async () => { if (rd) return; rd = true; let b = [], bz = 0, tm = null; const fl = () => { if (!bz) return; const m = new Uint8Array(bz); let p = 0; for (const x of b) { m.set(x, p); p += x.length } if (ws.readyState === 1) ws.send(m); b = []; bz = 0; if (tm) clearTimeout(tm); tm = null }; try { while (1) { if (pb > MAX_PENDING) { await new Promise(r => setTimeout(r, 100)); continue } const { done, value: v } = await r.read(); if (v?.length) { rx += v.length; lact = Date.now(); stl = 0; upd(v.length); const n = Date.now(); if (n - lck > 5000) { const el = n - lck, by = rx - lrx, r = by / el; if (r > 500) scr = Math.min(1, scr + 0.05); else if (r < 50) scr = Math.max(0.1, scr - 0.05); lck = n; lrx = rx } if (md === 'buf') { if (v.length < 32768) { b.push(v); bz += v.length; if (bz >= 131072) fl(); else if (!tm) tm = setTimeout(fl, asz > 16384 ? 5 : 20) } else { fl(); if (ws.readyState === 1) ws.send(v) } } else { fl(); if (ws.readyState === 1) ws.send(v) } } if (done) { fl(); rd = false; rcn(); break } } } catch { fl(); rd = false; rcn() } };
   const wtL = async () => { if (wt) return; wt = true; try { while (wt) { if (!w) { await new Promise(r => setTimeout(r, 100)); continue } if (!pd.length) { await new Promise(r => setTimeout(r, 20)); continue } const b = pd.shift(); await w.write(b); pb -= b.length; pool.free(b) } } catch { wt = false } };
   const est = async () => { try { s = await cn(); w = s.writable.getWriter(); r = s.readable.getReader(); con = false; cnt = 0; scr = Math.min(1, scr + 0.15); lact = Date.now(); rdL(); wtL() } catch { con = false; scr = Math.max(0.1, scr - 0.2); rcn() } };
@@ -179,7 +250,7 @@ const handle = (ws, pc, uuid) => {
   const rcn = async () => { if (!inf || ws.readyState !== 1) { cln(); ws.close(1011); return } if (cnt >= MAX_RECONN) { cln(); ws.close(1011); return } if (con) return; cnt++; let d = Math.min(50 * Math.pow(1.5, cnt - 1), 3000) * (1.5 - scr * 0.5); d = Math.max(50, Math.floor(d)); try { csk(); if (pb > MAX_PENDING * 2) while (pb > MAX_PENDING && pd.length > 5) { const k = pd.shift(); pb -= k.length; pool.free(k) } await new Promise(r => setTimeout(r, d)); con = true; s = await cn(); w = s.writable.getWriter(); r = s.readable.getReader(); con = false; cnt = 0; scr = Math.min(1, scr + 0.15); stl = 0; lact = Date.now(); rdL(); wtL() } catch { con = false; scr = Math.max(0.1, scr - 0.2); if (cnt < MAX_RECONN && ws.readyState === 1) setTimeout(rcn, 500); else { cln(); ws.close(1011) } } };
   const stT = () => { tm.ka = setInterval(async () => { if (!con && w && Date.now() - lact > KEEPALIVE) try { await w.write(new Uint8Array(0)); lact = Date.now() } catch { rcn() } }, KEEPALIVE / 3); tm.hc = setInterval(() => { if (!con && st.t > 0 && Date.now() - lact > STALL_TO) { stl++; if (stl >= MAX_STALL) { if (cnt < MAX_RECONN) { stl = 0; rcn() } else { cln(); ws.close(1011) } } } }, STALL_TO / 2) };
   const csk = () => { rd = false; wt = false; try { w?.releaseLock(); r?.releaseLock(); s?.close() } catch { } }; 
-  const cln = () => { Object.values(tm).forEach(clearInterval); csk(); while (pd.length) pool.free(pd.shift()); pb = 0; st = { t: 0, c: 0, ts: Date.now() }; md = 'buf'; asz = 0; tp = []; pool.reset() };
+  const cln = () => { Object.values(tm).forEach(clearInterval); csk(); while (pd.length) pool.free(pd.shift()); pb = 0; st = { t: 0, c: 0, ts: Date.now() }; md = 'dir'; asz = 0; tp = []; pool.reset() };
   ws.addEventListener('message', async e => { try { if (fst) { fst = false; const b = new Uint8Array(e.data); if (buildUUID(b, 1).toLowerCase() !== uuid.toLowerCase()) throw 0; ws.send(new Uint8Array([0, 0])); const { host, port, payload } = extractAddr(b); inf = { host, port }; con = true; if (payload.length) { const z = pool.alloc(payload.length); z.set(payload); pd.push(z); pb += z.length } stT(); est() } else { lact = Date.now(); if (pb > MAX_PENDING * 2) return; const z = pool.alloc(e.data.byteLength); z.set(new Uint8Array(e.data)); pd.push(z); pb += z.length } } catch { cln(); ws.close(1006) } });
   ws.addEventListener('close', cln); ws.addEventListener('error', cln)
 };
@@ -609,11 +680,6 @@ function dashPage(host, uuid, proxyip, subpass, subdomain, converter, env, clien
 </html>`;
 }
 
-// 导出放在最后，确保所有函数都已定义
-// ... (保留前面的 HTML/CSS/常量配置代码不变) ...
-
-// ... (保留前面的 HTML/CSS/常量配置代码不变) ...
-
 // =============================================================================
 // 🟢 核心逻辑：强制不缓存的 Headers 定义
 // =============================================================================
@@ -625,9 +691,42 @@ const strictCacheHeaders = {
     'Surrogate-Control': 'no-store'
 };
 
+/**
+ * ✅ [新增] 安全统计 KV 写入函数 (防爆盾)
+ * 采用 1% 采样写入策略，将 10000 次写入压缩为 100 次
+ * 彻底解决 CPU 崩溃和 KV 爆满问题，同时不阻塞主线程
+ */
+async function safeUpdateKVStats(env, ctx) {
+    // 如果没有 KV 绑定 (env.LH)，直接跳过
+    if (!env.LH) return;
+
+    // 采样率：100 (每 100 次请求，才写一次 KV)
+    const SAMPLE_RATE = 100;
+
+    // Math.random() < 0.01 只有 1% 的几率执行写入
+    if (Math.random() < (1 / SAMPLE_RATE)) {
+        ctx.waitUntil(async function() {
+            try {
+                // 读取旧值 (KV 操作)
+                const current = await env.LH.get("KV_TOTAL_REQ");
+                // 写入时直接 +100，补回没写入的那 99 次
+                const newVal = parseInt(current || 0) + SAMPLE_RATE;
+                // 执行写入 (完全异步)
+                await env.LH.put("KV_TOTAL_REQ", newVal.toString());
+            } catch (e) {
+                // 忽略写入冲突错误，保命要紧
+                console.error("Stats Update Skipped:", e);
+            }
+        }());
+    }
+}
+
 export default {
   async fetch(r, env, ctx) { 
     try {
+      // 🟢 [核心修复] 调用防爆 KV 统计 (不阻塞，安全写入)
+      safeUpdateKVStats(env, ctx);
+      
       const url = new URL(r.url);
       const host = url.hostname; 
       const UA = (r.headers.get('User-Agent') || "").toLowerCase();
@@ -681,7 +780,8 @@ export default {
       }
 
       if (isGlobalAdmin) isValidUser = true;
-      if (env.DB || env.LH) ctx.waitUntil(incrementDailyStats(env));
+      // 🟢 [优化] 这里只负责 D1 写入，KV 写入已移交 safeUpdateKVStats
+      if (env.DB) ctx.waitUntil(incrementDailyStats(env));
       if (url.pathname === '/favicon.ico') return new Response(null, { status: 404 });
       
       const flag = url.searchParams.get('flag');
@@ -690,6 +790,7 @@ export default {
           if (flag === 'log_proxy_check') { await sendTgMsg(ctx, env, "🔍 用户点击了 ProxyIP 检测", r, "来源: 后台管理面板", isGlobalAdmin); return new Response(null, { status: 204 }); }
           if (flag === 'log_sub_test') { await sendTgMsg(ctx, env, "🌟 用户点击了订阅测试", r, "来源: 后台管理面板", isGlobalAdmin); return new Response(null, { status: 204 }); }
           if (flag === 'stats') {
+              // 这里会读取 KV 或 D1 的数据返回给前端
               let reqCount = await incrementDailyStats(env);
               const cfStats = await getCloudflareUsage(env);
               const finalReq = cfStats.success ? `${cfStats.total} (API)` : `${reqCount} (Internal)`;
@@ -741,7 +842,8 @@ export default {
 
       // 🟢 订阅接口
       if (_SUB_PW && url.pathname === `/${_SUB_PW}`) {
-          ctx.waitUntil(logAccess(env, clientIP, `${city},${country}`, "订阅更新"));
+          // 🟢 [优化] 使用支持 KV 的日志函数，带采样
+          logAccess(env, ctx, clientIP, `${city},${country}`, "订阅更新");
           const isFlagged = url.searchParams.has('flag');
           if (!isFlagged) {
               try {
@@ -819,7 +921,7 @@ export default {
 
       // 🟢 常规订阅 /sub
       if (url.pathname === '/sub') {
-          ctx.waitUntil(logAccess(env, clientIP, `${city},${country}`, "常规订阅"));
+          logAccess(env, ctx, clientIP, `${city},${country}`, "常规订阅");
           const requestUUID = url.searchParams.get('uuid');
           if (requestUUID.toLowerCase() !== _UUID.toLowerCase()) return new Response('Invalid UUID', { status: 403 });
           
@@ -847,7 +949,7 @@ export default {
         }
 
           await sendTgMsg(ctx, env, "✅ 后台登录成功", r, "进入管理面板", true); 
-          ctx.waitUntil(logAccess(env, clientIP, `${city},${country}`, "登录后台"));
+          logAccess(env, ctx, clientIP, `${city},${country}`, "登录后台");
           
           const sysParams = { tgToken: env.TG_BOT_TOKEN || TG_BOT_TOKEN, tgId: env.TG_CHAT_ID || TG_CHAT_ID, cfId: env.CF_ID || "", cfToken: env.CF_TOKEN || "", cfMail: env.CF_EMAIL || "", cfKey: env.CF_KEY || "" };
           const tgToken = await getSafeEnv(env, 'TG_BOT_TOKEN', TG_BOT_TOKEN);
@@ -876,7 +978,9 @@ export default {
       }
       const { 0: c, 1: s } = new WebSocketPair();
       s.accept(); 
-      handle(s, proxyIPConfig, _UUID); 
+      try {
+        handle(s, proxyIPConfig, _UUID); 
+      } catch(e) {}
       return new Response(null, { status: 101, webSocket: c });
   } catch (err) {
       return new Response(err.toString(), { status: 500 });
