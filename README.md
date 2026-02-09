@@ -8,17 +8,12 @@
   - [配置加载优先级详解](#️-配置加载优先级详解)
 - [🔑 snippets专用用户配置区域说明（重要 - 必读）](#-snippets专用用户配置区域说明重要---必读)
   - [配置区域在哪里？](#配置区域在哪里)
-  - [所有配置变量一览表](#所有配置变量一览表--仅参考-snippets不支持环境变量)
-  - [支持的两种写法](#支持的两种写法)
-  - [方式一：直接填明文（最简单，推荐新手）](#方式一直接填明文最简单推荐新手)
-  - [方式二：填 Base64 编码（保护隐私）](#方式二填-base64-编码保护隐私)
-    - [写法 A：let 变量 —— 直接填 Base64 字符串](#写法-alet-变量--直接填-base64-字符串自动识别)
-    - [写法 B：const 变量 —— 使用 atob 包裹](#写法-bconst-变量--使用-atob-包裹手动解码)
-    - [两种写法对比总结](#两种写法对比总结)
-    - [如何加密（明文 → Base64）](#-如何加密明文--base64-详细步骤)
-    - [如何解密（Base64 → 明文）](#-如何解密base64--明文-详细步骤)
-  - [完整修改示例](#完整修改示例)
-  - [常用 Base64 编码/解码速查](#常用-base64-编码解码速查)
+  - [什么是字符串拆分？为什么要这样写？](#什么是字符串拆分为什么要这样写)
+  - [所有配置变量一览表](#所有配置变量一览表-仅参考-snippets不支持环境变量)
+  - [如何修改配置 —— 分步教学](#-如何修改配置--分步教学)
+  - [拆分技巧 —— 怎么拆才有效](#️-拆分技巧--怎么拆才有效)
+  - [完整修改示例](#-完整修改示例)
+  - [常见特征词拆分参考](#常见特征词拆分参考)
   - [哪些变量可以留空？](#哪些变量可以留空)
   - [变量名与环境变量对照表（仅 Worker 版适用）](#变量名与环境变量对照表仅-worker-版适用)
 - [代码版本说明](#-代码版本说明)
@@ -125,12 +120,14 @@
 
 ---
 
+
 ## 🔑 snippets专用用户配置区域说明（重要 - 必读）
 
-> **⚠️ snippets代码中的用户配置区域同时支持明文和 Base64 编码两种写法！**
+> **⚠️ snippets代码采用「字符串拆分」防特征扫描技术！**
 >
-> 你可以直接填写明文（如 `ProxyIP.US.CMLiussss.net`），也可以填写 Base64 编码后的值（如 `UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0`）。
-> 代码会**自动识别**并正确处理，两种方式功能完全相同，可以混用。
+> 配置值通过 `"" + ""` 拼接方式书写，运行时 JavaScript 自动合并为完整字符串。
+> 这样做的目的是：**防止 GitHub 搜索引擎和爬虫通过关键词匹配到你的代码**。
+> 你看到的每一段拼接，连起来读就是完整的明文内容。
 
 ---
 
@@ -138,372 +135,226 @@
 
 打开代码文件（`snippets.js` 或 `snippets.txt`），**第 3 ~ 19 行**就是用户配置区域：
 
-以下为示例 方便用户清楚修改每一处地方：
-
 ```javascript
-// 用户配置区域（支持明文或Base64，自动识别）
+// 用户配置区域（用 ""+""  拆分特征词，防止扫描匹配，运行时自动拼接）
 const UUID = "06b65903-406d-4a41-8463-6fd5c0ee7798"; // 可用的uuid
 const WP = "123456";  // 登录密码
 const SUB_PWD = "123456";  // 订阅密码
-let PIP = "ProxyIP.US.CMLiussss.net";  // 自定义的中转ip
-let SUB = "sub.cmliussss.net";  // 自定义的订阅源
+let PIP = "Pr"+"oxy"+"IP.US."+"CML"+"iussss"+".net";  // 自定义的中转ip
+let SUB = "sub."+"cm"+"liussss"+".net";  // 自定义的订阅源
 const NU = "https://nva.saas.ae.kg/"; // 🧭 导航按钮链接
 const TG = "https://t.me/zyssadmin";   // 群组
 const PC = "https://kaic.hidns.co/";  // 中转检测站
-let SUBAPI = "https://subapi.cmliussss.net";  // 自定义后端api
-let SUBINI = "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini"; // 自定义订阅配置转换ini
-const SBV12 = atob("...");  // 禁止修改
-const SBV11 = atob("...");  // 禁止修改
+let SUBAPI = "https://"+"sub"+"api."+"cm"+"liussss"+".net";  // 自定义后端api
+let SUBINI = "https://"+"raw.github"+"usercontent.com/"+"cm"+"liu/"+"ACL4"+"SSR/main/"+"Cl"+"ash/config/"+"ACL4"+"SSR_Online_Full_MultiMode.ini"; // 自定义订阅配置转换ini
+const SBV12 = "https://"+"raw.github"+"usercontent.com/"+"sins"+"pired/"+"sub-st"+"ore-template/main/1.12.x/"+"sing-"+"box.json"; // 禁止修改
+const SBV11 = "https://"+"raw.github"+"usercontent.com/"+"sins"+"pired/"+"sub-st"+"ore-template/main/1.11.x/"+"sing-"+"box.json"; // 禁止修改
 const BT = "";  // TG Bot Token
 const CI = "";  // TG Chat ID
 const AI = "";  // 管理员IP白名单
 //结束
 ```
 
-> **说明**：`PIP`、`SUB`、`SUBAPI`、`SUBINI` 这 4 个变量使用 `let` 声明，因为代码在 `//结束` 下方有一行自动检测函数 `_D`，会判断你填的是明文还是 Base64，自动处理。其他变量使用 `const` 声明，直接填写明文即可。
+---
+
+### 什么是字符串拆分？为什么要这样写？
+
+**问题**：如果你在代码中直接写 `"ProxyIP.US.CMLiussss.net"`，GitHub 搜索引擎和爬虫可以通过搜索 `cmliussss` 直接找到你的代码。
+
+**解决方案**：把字符串用 `+` 号断开，比如写成 `"CML"+"iussss"`。
+
+**原理**：
+- 源代码文件中，`"CML"` 和 `"iussss"` 是两个独立的字符串片段
+- 搜索 `cmliussss` 或 `CMLiussss` 都**搜不到**，因为文件中不存在这个完整词
+- 但 JavaScript 运行时会自动把 `"CML"+"iussss"` 拼接成 `"CMLiussss"`，功能完全正常
+
+> **简单理解**：就像把一个词拆成两半写，机器搜不到，但人眼一看就懂。
 
 ---
 
-### 所有配置变量一览表  【仅参考 snippets不支持环境变量】
+### 所有配置变量一览表 【仅参考 snippets不支持环境变量】
 
-| 变量名 | 声明方式 | 用途 | 当前默认值 | 支持 Base64 | 可否修改 |
-|--------|---------|------|-----------|:-----------:|:-------:|
-| `UUID` | `const` | 用户 UUID | `06b65903-406d-4a41-8463-6fd5c0ee7798` | ❌ | ✅ 必改 |
-| `WP` | `const` | 后台登录密码 | `123456` | ❌ | ✅ 必改 |
-| `SUB_PWD` | `const` | 订阅路径密码 | `123456` | ❌ | ✅ 必改 |
-| `PIP` | `let` | ProxyIP 中转地址 | `ProxyIP.US.CMLiussss.net` | ✅ | ✅ 可改 |
-| `SUB` | `let` | 上游订阅器域名 | `sub.cmliussss.net` | ✅ | ✅ 可改 |
-| `NU` | `const` | 登录页导航链接 | `https://nva.saas.ae.kg/` | ❌ | ✅ 可改 |
-| `TG` | `const` | Telegram 群组链接 | `https://t.me/zyssadmin` | ❌ | ✅ 可改 |
-| `PC` | `const` | ProxyIP 检测站链接 | `https://kaic.hidns.co/` | ❌ | ✅ 可改 |
-| `SUBAPI` | `let` | 订阅转换后端 API | `https://subapi.cmliussss.net` | ✅ | ✅ 可改 |
-| `SUBINI` | `let` | Clash 配置模板 URL | ACL4SSR 配置链接 | ✅ | ✅ 可改 |
-| `SBV12` | `const` | Sing-box v1.12 配置 | sinspired 模板链接 | — | ❌ 禁止修改 |
-| `SBV11` | `const` | Sing-box v1.11 配置 | sinspired 模板链接 | — | ❌ 禁止修改 |
-| `BT` | `const` | TG Bot Token | （空） | ❌ | ✅ 可改 |
-| `CI` | `const` | TG Chat ID | （空） | ❌ | ✅ 可改 |
-| `AI` | `const` | 管理员 IP 白名单 | （空） | ❌ | ✅ 可改 |
+| 变量名 | 用途 | 默认值（拼接后） | 是否需要拆分 | 可否修改 |
+|--------|------|-----------------|:-----------:|:-------:|
+| `UUID` | 用户 UUID | `06b65903-406d-4a41-8463-6fd5c0ee7798` | ❌ 不需要 | ✅ 必改 |
+| `WP` | 后台登录密码 | `123456` | ❌ 不需要 | ✅ 必改 |
+| `SUB_PWD` | 订阅路径密码 | `123456` | ❌ 不需要 | ✅ 必改 |
+| `PIP` | ProxyIP 中转地址 | `ProxyIP.US.CMLiussss.net` | ✅ 建议拆分 | ✅ 可改 |
+| `SUB` | 上游订阅器域名 | `sub.cmliussss.net` | ✅ 建议拆分 | ✅ 可改 |
+| `NU` | 登录页导航链接 | `https://nva.saas.ae.kg/` | ⚪ 看情况 | ✅ 可改 |
+| `TG` | Telegram 群组链接 | `https://t.me/zyssadmin` | ⚪ 看情况 | ✅ 可改 |
+| `PC` | ProxyIP 检测站链接 | `https://kaic.hidns.co/` | ⚪ 看情况 | ✅ 可改 |
+| `SUBAPI` | 订阅转换后端 API | `https://subapi.cmliussss.net` | ✅ 建议拆分 | ✅ 可改 |
+| `SUBINI` | Clash 配置模板 URL | ACL4SSR 配置链接 | ✅ 建议拆分 | ✅ 可改 |
+| `SBV12` | Sing-box v1.12 配置 | sinspired 模板链接 | ✅ 已拆分 | ❌ 禁止修改 |
+| `SBV11` | Sing-box v1.11 配置 | sinspired 模板链接 | ✅ 已拆分 | ❌ 禁止修改 |
+| `BT` | TG Bot Token | （空） | ❌ 不需要 | ✅ 可改 |
+| `CI` | TG Chat ID | （空） | ❌ 不需要 | ✅ 可改 |
+| `AI` | 管理员 IP 白名单 | （空） | ❌ 不需要 | ✅ 可改 |
 
-> **提示**：只有 `let` 声明的 4 个变量（`PIP`、`SUB`、`SUBAPI`、`SUBINI`）支持 Base64 自动识别。其他 `const` 变量直接填明文即可。
-
----
-
-### 支持的两种写法
-
-代码内置了**智能识别函数 `_D`**，会自动判断你填的是明文还是 Base64：
-
-| 写法 | 示例 | 说明 |
-|------|------|------|
-| **明文（推荐新手使用）** | `"ProxyIP.US.CMLiussss.net"` | 直接填写，简单直观，所见即所得 |
-| **Base64 编码（保护隐私）** | `"UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0"` | 防止 GitHub 搜索到敏感域名 |
-
-**自动识别原理**：
-1. 代码尝试对你填的值执行 `atob()` 解码
-2. 如果解码成功且结果中**不含控制字符**（`\x00-\x1f`）→ 认为是 Base64，使用解码后的值
-3. 如果解码失败（`atob()` 报错）→ 认为是明文，直接使用原值
-4. 如果解码结果含控制字符（乱码）→ 认为是明文，直接使用原值
-
-> **简单理解**：你填什么都行，代码会自动判断。填明文就用明文，填 Base64 就自动解码。
+> **什么时候需要拆分？** 当你的配置值中包含敏感关键词（如项目名、用户名、特定域名）时，建议拆分。普通的密码、UUID、自己的私有域名一般不需要拆分。
 
 ---
 
-### 方式一：直接填明文（最简单，推荐新手）
+### 🔧 如何修改配置 —— 分步教学
 
-直接把你的内容填进引号里，不需要任何编码操作：
+#### 第 1 步：找到要修改的变量
+
+打开代码文件，找到第 3 ~ 19 行的用户配置区域。每行都有注释说明用途。
+
+#### 第 2 步：确定你的新值
+
+比如你要把中转IP改成 `cdn.my-proxy.com`。
+
+#### 第 3 步：判断是否需要拆分
+
+问自己：**这个值里有没有不想被搜索到的关键词？**
+
+- 如果**没有敏感词**（比如你自己的私有域名 `cdn.my-proxy.com`）→ **直接写明文**
+- 如果**有敏感词**（比如包含某个项目名或知名域名）→ **用 `+` 拆开**
+
+#### 第 4 步：写入代码
+
+**情况 A：不需要拆分 —— 直接写明文**
 
 ```javascript
-// 用户配置区域（支持明文或Base64，自动识别）
-const UUID = "你的UUID";
-const WP = "你的登录密码";
-const SUB_PWD = "你的订阅密码";
-let PIP = "cf.090227.xyz";                              // 直接填域名
-let SUB = "sub.cmliussss.net";                           // 直接填域名
-const NU = "https://nva.saas.ae.kg/";                    // 直接填URL
-const TG = "https://t.me/zyssadmin";                     // 直接填URL
-const PC = "https://kaic.hidns.co/";                     // 直接填URL
-let SUBAPI = "https://subapi.cmliussss.net";             // 直接填完整URL
-let SUBINI = "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini";
+// 改之前
+let PIP = "Pr"+"oxy"+"IP.US."+"CML"+"iussss"+".net";
+
+// 改之后（你自己的域名，没有敏感词，直接写）
+let PIP = "cdn.my-proxy.com";
 ```
+
+**情况 B：需要拆分 —— 用 `+` 断开关键词**
+
+```javascript
+// 改之前
+let PIP = "Pr"+"oxy"+"IP.US."+"CML"+"iussss"+".net";
+
+// 改之后（新域名包含敏感词 example，你想拆开它）
+let PIP = "cdn."+"exa"+"mple"+".com";
+```
+
+> **核心规则**：在你认为是特征的关键词中间，用 `""+""` 断开就行。
 
 ---
 
-### 方式二：填 Base64 编码（保护隐私）
+### ✂️ 拆分技巧 —— 怎么拆才有效
 
-如果你的代码会公开到 GitHub，建议使用 Base64 编码，防止域名被搜索引擎和爬虫匹配到。
+#### 规则 1：在关键词中间断开
 
-代码中有**两种 Base64 写法**，根据变量的声明方式不同而不同：
+```javascript
+// ❌ 错误：没有断开关键词，搜索 "cmliussss" 仍然能匹配到
+let SUB = "sub.cmliussss.net";
+
+// ✅ 正确：关键词被断开，搜索 "cmliussss" 匹配不到
+let SUB = "sub."+"cm"+"liussss"+".net";
+
+// ✅ 也正确：拆得更细
+let SUB = "sub."+"c"+"m"+"liu"+"ssss"+".net";
+```
+
+#### 规则 2：拆分点要让两边都不构成完整特征
+
+```javascript
+// ⚠️ 一般：拆成 "cmlius" + "sss"，"cmlius" 仍有一定辨识度
+let SUB = "sub."+"cmlius"+"sss"+".net";
+
+// ✅ 更好：拆成 "cm" + "liussss"，两边都没有辨识度
+let SUB = "sub."+"cm"+"liussss"+".net";
+```
+
+#### 规则 3：非敏感部分不需要拆
+
+```javascript
+// ❌ 过度拆分：".net" 不是敏感词，没必要拆
+let SUB = "s"+"u"+"b"+"."+"c"+"m"+"l"+"i"+"u"+"s"+"s"+"s"+"s"+"."+"n"+"e"+"t";
+
+// ✅ 合理拆分：只拆敏感词 "cmliussss"
+let SUB = "sub."+"cm"+"liussss"+".net";
+```
+
+#### 规则 4：多个敏感词分别拆
+
+```javascript
+// SUBINI 中有多个敏感词：cmliu、ACL4SSR、Clash
+// 每个都要断开
+
+let SUBINI = "https://"
+  +"raw.github"+"usercontent.com/"  // github 拆开
+  +"cm"+"liu/"                       // cmliu 拆开
+  +"ACL4"+"SSR/main/"               // ACL4SSR 拆开
+  +"Cl"+"ash/config/"               // Clash 拆开
+  +"ACL4"+"SSR_Online_Full_MultiMode.ini";  // ACL4SSR 再次拆开
+```
+
+> **提示**：上面的换行写法只是为了方便阅读。实际代码中写成一行也完全可以。
 
 ---
 
-#### 写法 A：`let` 变量 —— 直接填 Base64 字符串（自动识别）
-
-适用于：`PIP`、`SUB`、`SUBAPI`、`SUBINI` 这 4 个 `let` 声明的变量。
-
-**原理**：代码在 `//结束` 下方有自动检测函数 `_D`，会自动判断你填的是明文还是 Base64，无需手动写 `atob()`。
-
-**步骤：**
-
-1. 打开浏览器，按 `F12` 打开控制台
-2. 输入 `btoa("你的内容")` 获取 Base64 编码
-3. 把结果直接填入引号中
-
-```javascript
-// 第 1 步：在浏览器控制台获取 Base64
-btoa("ProxyIP.US.CMLiussss.net")
-// 输出: "UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0"
-
-// 第 2 步：直接填入代码（不需要写 atob）
-let PIP = "UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0";  // 代码会自动识别并解码
-```
-
-**更多示例：**
-
-```javascript
-// 明文和 Base64 都可以，代码自动识别
-let PIP = "ProxyIP.US.CMLiussss.net";           // ✅ 明文写法
-let PIP = "UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0";  // ✅ Base64写法，效果完全相同
-
-let SUB = "sub.cmliussss.net";                   // ✅ 明文写法
-let SUB = "c3ViLmNtbGl1c3Nzcy5uZXQ=";           // ✅ Base64写法
-
-let SUBAPI = "https://subapi.cmliussss.net";     // ✅ 明文写法
-let SUBAPI = "aHR0cHM6Ly9zdWJhcGkuY21saXVzc3NzLm5ldA==";  // ✅ Base64写法
-
-let SUBINI = "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini";  // ✅ 明文写法
-let SUBINI = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2NtbGl1L0FDTDRTU1IvbWFpbi9DbGFzaC9jb25maWcvQUNMNFNTUl9PbmxpbmVfRnVsbF9NdWx0aU1vZGUuaW5p";  // ✅ Base64写法
-```
-
----
-
-#### 写法 B：`const` 变量 —— 使用 `atob("...")` 包裹（手动解码）
-
-适用于：`NU`、`TG`、`PC`、`SUBAPI`、`SUBINI` 等任何 `const` 声明的变量，或者你想确保 100% 使用 Base64 解码的场景。
-
-**原理**：`atob()` 是 JavaScript 内置函数，代码运行时会自动把 Base64 解码为明文。
-
-**步骤：**
-
-1. 打开浏览器，按 `F12` 打开控制台
-2. 输入 `btoa("你的内容")` 获取 Base64 编码
-3. 在代码中用 `atob("...")` 包裹
-
-```javascript
-// 第 1 步：在浏览器控制台获取 Base64
-btoa("https://subapi.cmliussss.net")
-// 输出: "aHR0cHM6Ly9zdWJhcGkuY21saXVzc3NzLm5ldA=="
-
-// 第 2 步：用 atob() 包裹填入代码
-const SUBAPI = atob("aHR0cHM6Ly9zdWJhcGkuY21saXVzc3NzLm5ldA==");  // 自定义后端api
-```
-
-**更多示例：**
-
-```javascript
-// 使用 atob() 包裹的写法
-const SUBAPI = atob("aHR0cHM6Ly9zdWJhcGkuY21saXVzc3NzLm5ldA==");  // 自定义后端api
-const SUBINI = atob("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2NtbGl1L0FDTDRTU1IvbWFpbi9DbGFzaC9jb25maWcvQUNMNFNTUl9PbmxpbmVfRnVsbF9NdWx0aU1vZGUuaW5p");  // 自定义订阅配置转换ini
-const SBV12 = atob("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL3NpbnNwaXJlZC9zdWItc3RvcmUtdGVtcGxhdGUvbWFpbi8xLjEyLngvc2luZy1ib3guanNvbg==");  // 禁止修改
-const SBV11 = atob("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL3NpbnNwaXJlZC9zdWItc3RvcmUtdGVtcGxhdGUvbWFpbi8xLjExLngvc2luZy1ib3guanNvbg==");  // 禁止修改
-```
-
-> **注意**：使用 `atob()` 写法时，变量必须用 `const` 声明（不能用 `let`），否则会被 `_D` 函数二次处理导致出错。
-
----
-
-#### 两种写法对比总结
-
-| 对比项 | 写法 A：直接填 Base64 | 写法 B：`atob("...")` 包裹 |
-|--------|---------------------|--------------------------|
-| **适用变量** | `let` 声明的 4 个：PIP、SUB、SUBAPI、SUBINI | `const` 声明的所有变量 |
-| **代码格式** | `let PIP = "Base64字符串";` | `const SUBAPI = atob("Base64字符串");` |
-| **是否支持明文** | ✅ 明文和 Base64 都支持 | ❌ 只能填 Base64 |
-| **解码方式** | `_D` 函数自动识别解码 | `atob()` 直接解码 |
-| **推荐场景** | 新手、想灵活切换明文/Base64 | 确保加密、代码公开到 GitHub |
-
----
-
-#### 🔒 如何加密（明文 → Base64）—— 详细步骤
-
-**方法 1：浏览器控制台（推荐，最方便）**
-
-1. 打开任意网页（比如百度、Google）
-2. 按键盘 `F12` 键，打开浏览器开发者工具
-3. 点击顶部的 **Console（控制台）** 标签
-4. 在控制台输入以下命令，然后按 **回车**：
-
-```javascript
-btoa("ProxyIP.US.CMLiussss.net")
-```
-
-5. 控制台会输出加密后的结果：
-
-```
-'UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0'
-```
-
-6. 复制这个结果（不含引号），根据变量类型选择填入方式：
-
-```javascript
-// 写法 A：let 变量 —— 直接填 Base64 字符串
-let PIP = "UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0";
-
-// 写法 B：const 变量 —— 用 atob() 包裹
-const SUBAPI = atob("aHR0cHM6Ly9zdWJhcGkuY21saXVzc3NzLm5ldA==");
-```
-
-**更多加密示例：**
-
-```javascript
-// 在浏览器控制台依次输入：
-
-btoa("sub.cmliussss.net")
-// 输出: "c3ViLmNtbGl1c3Nzcy5uZXQ="
-
-btoa("https://subapi.cmliussss.net")
-// 输出: "aHR0cHM6Ly9zdWJhcGkuY21saXVzc3NzLm5ldA=="
-
-btoa("https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini")
-// 输出: "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2NtbGl1L0FDTDRTU1IvbWFpbi9DbGFzaC9jb25maWcvQUNMNFNTUl9PbmxpbmVfRnVsbF9NdWx0aU1vZGUuaW5p"
-```
-
-**方法 2：在线工具**
-
-1. 打开任意 Base64 在线编码网站（搜索「Base64 在线编码」）
-2. 在输入框粘贴你的明文内容（如 `sub.cmliussss.net`）
-3. 点击「编码」按钮
-4. 复制输出的 Base64 字符串
-5. 填入代码中
-
-**方法 3：命令行（适合开发者）**
-
-```bash
-# Linux / macOS
-echo -n "sub.cmliussss.net" | base64
-# 输出: c3ViLmNtbGl1c3Nzcy5uZXQ=
-
-# Windows PowerShell
-[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("sub.cmliussss.net"))
-# 输出: c3ViLmNtbGl1c3Nzcy5uZXQ=
-```
-
----
-
-#### 🔓 如何解密（Base64 → 明文）—— 详细步骤
-
-当你看到代码中已有的 Base64 字符串，想知道它的真实内容时：
-
-**方法 1：浏览器控制台（推荐）**
-
-1. 按 `F12` 打开浏览器开发者工具
-2. 点击 **Console（控制台）** 标签
-3. 输入以下命令，按 **回车**：
-
-```javascript
-atob("UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0")
-```
-
-4. 控制台输出真实内容：
-
-```
-'ProxyIP.US.CMLiussss.net'
-```
-
-**更多解密示例：**
-
-```javascript
-// 在浏览器控制台依次输入：
-
-atob("c3ViLmNtbGl1c3Nzcy5uZXQ=")
-// 输出: "sub.cmliussss.net"
-
-atob("aHR0cHM6Ly9zdWJhcGkuY21saXVzc3NzLm5ldA==")
-// 输出: "https://subapi.cmliussss.net"
-
-atob("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2NtbGl1L0FDTDRTU1IvbWFpbi9DbGFzaC9jb25maWcvQUNMNFNTUl9PbmxpbmVfRnVsbF9NdWx0aU1vZGUuaW5p")
-// 输出: "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini"
-```
-
-**方法 2：在线工具**
-
-1. 打开任意 Base64 在线解码网站（搜索「Base64 在线解码」）
-2. 粘贴 Base64 字符串
-3. 点击「解码」按钮
-4. 查看输出的明文内容
-
-**方法 3：命令行**
-
-```bash
-# Linux / macOS
-echo "c3ViLmNtbGl1c3Nzcy5uZXQ=" | base64 -d
-# 输出: sub.cmliussss.net
-
-# Windows PowerShell
-[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("c3ViLmNtbGl1c3Nzcy5uZXQ="))
-# 输出: sub.cmliussss.net
-```
-
----
-
-### 完整修改示例
+### 📝 完整修改示例
 
 假设你要把所有配置改成自己的：
 
+**示例 1：所有值都是自己的私有域名，不需要拆分**
+
 ```javascript
-// 用户配置区域（支持明文或Base64，自动识别）
+// 用户配置区域（用 ""+""  拆分特征词，防止扫描匹配，运行时自动拼接）
 const UUID = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"; // 改成你自己的 UUID
 const WP = "MyPassword888";   // 改成你的登录密码
 const SUB_PWD = "mysub";      // 改成你的订阅密码
-
-// ===== PIP / SUB / SUBAPI / SUBINI 支持明文或Base64两种写法，任选其一 =====
-
-// 写法A：明文（推荐新手）
-let PIP = "cf.090227.xyz";                              // 直接填你的 ProxyIP
-let SUB = "mysub.example.com";                           // 直接填你的订阅器域名
-let SUBAPI = "https://api.v1.mk";                       // 直接填你的转换后端
-let SUBINI = "https://raw.githubusercontent.com/...";    // 直接填你的配置链接
-
-// 写法B：Base64（保护隐私，二选一即可）
-// let PIP = "Y2YuMDkwMjI3Lnh5eg==";                    // btoa("cf.090227.xyz") 的结果
-// let SUB = "bXlzdWIuZXhhbXBsZS5jb20=";                // btoa("mysub.example.com") 的结果
-// let SUBAPI = "aHR0cHM6Ly9hcGkudjEubWs=";             // btoa("https://api.v1.mk") 的结果
-
-// ===== 以下变量直接填明文，不支持 Base64 =====
-
-const NU = "https://nva.saas.ae.kg/";                    // 导航链接
-const TG = "https://t.me/yourgroup";                     // 群组链接
-const PC = "https://kaic.hidns.co/";                     // 检测站
-
-const SBV12 = atob("...");  // 禁止修改
-const SBV11 = atob("...");  // 禁止修改
-
-const BT = "123456789:ABCdefGHIjklMNOpqrsTUVwxyz";      // TG Bot Token
-const CI = "987654321";                                   // TG Chat ID
-const AI = "1.2.3.4";                                     // 管理员IP白名单
+let PIP = "cdn.my-proxy.com";                        // 自己的域名，直接写
+let SUB = "sub.mydomain.com";                         // 自己的域名，直接写
+const NU = "https://nav.mydomain.com/";               // 直接写
+const TG = "https://t.me/mygroup";                    // 直接写
+const PC = "https://check.mydomain.com/";             // 直接写
+let SUBAPI = "https://api.v1.mk";                     // 直接写
+let SUBINI = "https://example.com/my-config.ini";     // 直接写
+const SBV12 = "https://"+"raw.github"+"usercontent.com/"+"sins"+"pired/"+"sub-st"+"ore-template/main/1.12.x/"+"sing-"+"box.json"; // 禁止修改
+const SBV11 = "https://"+"raw.github"+"usercontent.com/"+"sins"+"pired/"+"sub-st"+"ore-template/main/1.11.x/"+"sing-"+"box.json"; // 禁止修改
+const BT = "123456789:ABCdefGHIjklMNOpqrsTUVwxyz";   // TG Bot Token
+const CI = "987654321";                                // TG Chat ID
+const AI = "1.2.3.4";                                  // 管理员IP白名单
 //结束
 ```
 
----
+**示例 2：使用了别人的公共服务域名，需要拆分**
 
-### 常用 Base64 编码/解码速查
+```javascript
+let PIP = "Pr"+"oxy"+"IP.US."+"CML"+"iussss"+".net";       // ProxyIP.US.CMLiussss.net
+let SUB = "sub."+"cm"+"liussss"+".net";                      // sub.cmliussss.net
+let SUBAPI = "https://"+"sub"+"api."+"cm"+"liussss"+".net";  // https://subapi.cmliussss.net
+```
 
-| 操作 | 浏览器控制台命令 | 说明 |
-|------|-----------------|------|
-| **加密（明文→Base64）** | `btoa("你的内容")` | 把明文转成 Base64 |
-| **解密（Base64→明文）** | `atob("Base64字符串")` | 查看 Base64 的真实内容 |
+**示例 3：混合使用（部分拆分，部分明文）**
 
-**常用默认值对照表：**
+```javascript
+let PIP = "cdn.my-proxy.com";                                // 自己的域名，不拆
+let SUB = "sub."+"cm"+"liussss"+".net";                      // 公共域名，拆分
+let SUBAPI = "https://api.v1.mk";                            // 自己的API，不拆
+let SUBINI = "https://"+"raw.github"+"usercontent.com/"+"cm"+"liu/"+"ACL4"+"SSR/main/"+"Cl"+"ash/config/"+"ACL4"+"SSR_Online_Full_MultiMode.ini";  // 公共链接，拆分
+```
 
-| 变量 | Base64 编码值 | 明文值 |
-|------|--------------|--------|
-| `PIP` | `UHJveHlJUC5VUy5DTUxpdXNzc3MubmV0` | `ProxyIP.US.CMLiussss.net` |
-| `SUB` | `c3ViLmNtbGl1c3Nzcy5uZXQ=` | `sub.cmliussss.net` |
-| `SUBAPI` | `aHR0cHM6Ly9zdWJhcGkuY21saXVzc3NzLm5ldA==` | `https://subapi.cmliussss.net` |
-
-> **注意**：Base64 只支持 ASCII 字符（英文、数字、符号）。如果内容包含中文，请使用 `btoa(unescape(encodeURIComponent("中文内容")))` 进行编码。不过一般配置中都是英文域名和 URL，直接用 `btoa()` 即可。
-
-> **在线工具**：如果不方便用浏览器控制台，也可以搜索「Base64 在线编码解码」使用网页工具。
+> **总结**：自己的私有域名直接写明文，别人的公共域名/项目名用 `+` 拆开。
 
 ---
+
+### 常见特征词拆分参考
+
+以下是代码中常见的敏感关键词及推荐拆分方式：
+
+| 完整关键词 | 推荐拆分写法 | 说明 |
+|-----------|-------------|------|
+| `cmliussss` | `"cm"+"liussss"` | 用户名 |
+| `CMLiussss` | `"CML"+"iussss"` | 用户名（大写） |
+| `cmliu` | `"cm"+"liu"` | GitHub 用户名 |
+| `ProxyIP` | `"Pr"+"oxy"+"IP"` | 中转IP关键词 |
+| `ACL4SSR` | `"ACL4"+"SSR"` | 配置项目名 |
+| `Clash` | `"Cl"+"ash"` | 客户端名称 |
+| `sinspired` | `"sins"+"pired"` | 模板作者名 |
+| `sing-box` | `"sing-"+"box"` | 客户端名称 |
+| `sub-store` | `"sub-st"+"ore"` | 项目名 |
+| `githubusercontent` | `"github"+"usercontent"` | GitHub 域名 |
 
 ### 哪些变量可以留空？
 
@@ -532,10 +383,10 @@ const AI = "1.2.3.4";                                     // 管理员IP白名�
 | `UUID` | `UUID` | 用户 UUID | 直接改代码 |
 | `WP` | `WEB_PASSWORD` | 后台登录密码 | 直接改代码 |
 | `SUB_PWD` | `SUB_PASSWORD` | 订阅路径密码 | 直接改代码 |
-| `PIP` | `PROXYIP` | ProxyIP 中转地址 | 直接改代码（支持 Base64） |
-| `SUB` | `SUB_DOMAIN` | 上游订阅器域名 | 直接改代码（支持 Base64） |
-| `SUBAPI` | `SUBAPI` | 订阅转换后端 API | 直接改代码（支持 Base64） |
-| `SUBINI` | — | Clash 配置模板 | 直接改代码（支持 Base64） |
+| `PIP` | `PROXYIP` | ProxyIP 中转地址 | 直接改代码（支持拆分写法） |
+| `SUB` | `SUB_DOMAIN` | 上游订阅器域名 | 直接改代码（支持拆分写法） |
+| `SUBAPI` | `SUBAPI` | 订阅转换后端 API | 直接改代码（支持拆分写法） |
+| `SUBINI` | — | Clash 配置模板 | 直接改代码（支持拆分写法） |
 | `NU` | — | 导航链接 | 直接改代码 |
 | `TG` | `TG_GROUP_URL` | 群组链接 | 直接改代码 |
 | `PC` | `PROXY_CHECK_URL` | 检测站链接 | 直接改代码 |
@@ -1607,7 +1458,7 @@ fetch('https://your-worker.com?flag=add_whitelist', {
 **修改方法：**
 在代码顶部用户配置区域找到以下变量并修改：
 ```javascript
-let SUBINI = "你的Clash配置URL";       // 或 Base64 编码
+let SUBINI = "你的Clash配置URL";       // 或用 ""+""  拆分写法
 const PC = "你的检测网站URL";
 ```
 
